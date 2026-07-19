@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">教师宝</string>
+    <string name="title_activity_main">教师宝</string>
+    <string name="package_name">com.teacher.tool</string>
+    <string name="custom_url_scheme">com.teacher.tool</string>
+</resources>
