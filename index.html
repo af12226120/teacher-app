@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>教师宝</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; overscroll-behavior: none; }
+.header { background: #4A90D9; color: #fff; padding: 14px 16px; display: flex; align-items: center; }
+.header h1 { font-size: 20px; flex: 1; }
+.header select { background: #fff; color: #4A90D9; border: none; border-radius: 20px; padding: 6px 14px; font-size: 14px; font-weight: bold; }
+.main { padding: 16px; }
+.card { background: #fff; border-radius: 16px; padding: 20px; margin-bottom: 12px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.card .icon { font-size: 40px; }
+.card h3 { font-size: 18px; margin: 8px 0 4px; }
+.card p { font-size: 13px; color: #999; }
+.row { display: flex; gap: 10px; margin-bottom: 12px; }
+.row .btn { flex: 1; background: #f0f0f0; border: none; border-radius: 8px; padding: 10px; font-size: 15px; text-align: center; }
+.btn-primary { background: #4A90D9; color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-size: 15px; }
+.back { color: #fff; font-size: 16px; margin-right: 12px; text-decoration: none; }
+.student-row { display: flex; justify-content: space-between; align-items: center; background: #fff; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.student-row .name { font-size: 16px; font-weight: 500; }
+.grade-a { background: #4CAF50; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: bold; }
+.grade-d { background: #F44336; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 14px; font-weight: bold; }
+.grade-btn { padding: 8px 14px; border: none; border-radius: 6px; color: #fff; font-weight: bold; margin: 0 2px; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+.tag-good { background: #E8F5E9; color: #2E7D32; }
+.tag-bad { background: #FFEBEE; color: #C62828; }
+.hidden { display: none; }
+.sub-header { background: #4A90D9; color: #fff; padding: 12px 16px; display: flex; align-items: center; }
+.sub-header h2 { font-size: 18px; flex: 1; text-align: center; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ============ 数据层 ============
+const DB_KEY = 'teacher_tool';
+let db = JSON.parse(localStorage.getItem(DB_KEY) || '{"classes":[],"students":[],"records":[]}');
+function save() { localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2,6); }
+function today() { return new Date().toISOString().split('T')[0]; }
+
+// 初始化示例数据
+if (db.classes.length === 0) {
+  const cid = genId();
+  db.classes.push({ id: cid, name: '示例班级一', groups: [{name:'组1',memberIds:[]}] });
+  for (const n of ['张三','李四','王五','赵六','孙七']) {
+    const sid = genId();
+    db.students.push({ id: sid, name: n, classId: cid, groupIndex: 0 });
+    db.classes[0].groups[0].memberIds.push(sid);
+  }
+  save();
+}
+
+let currentClassId = db.classes[0]?.id || null;
+let currentPage = 'home';
+let pageState = {};
+
+function getStudents(cid) { return db.students.filter(s => s.classId === (cid || currentClassId)); }
+function getClass(cid) { return db.classes.find(c => c.id === (cid || currentClassId)); }
+
+// ============ 渲染引擎 ============
+function render(html) {
+  document.getElementById('app').innerHTML = html;
+  // 重新绑定事件
+  document.querySelectorAll('[data-click]').forEach(el => {
+    el.addEventListener('click', () => eval(el.dataset.click));
+  });
+}
+
+// ============ 页面 ============
+function homePage() {
+  currentPage = 'home';
+  const cls = getClass();
+  const count = getStudents().length;
+  render(`
+    <div class="header">
+      <h1>教师宝</h1>
+      <select onchange="switchClass(this.value)">
+        ${db.classes.map(c => `<option value="${c.id}" ${c.id===currentClassId?'selected':''}>${c.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="main">
+      <div class="row">
+        <button class="btn" data-click="page('roster')">📋 花名册</button>
+        <button class="btn" data-click="page('data')">📦 数据</button>
+      </div>
+      <div class="card" data-click="page('record','class')">
+        <div class="icon">📖</div>
+        <h3>上课记录</h3>
+        <p>表扬/批评 A·D</p>
+      </div>
+      <div class="card" data-click="page('record','hw')">
+        <div class="icon">📝</div>
+        <h3>作业记录</h3>
+        <p>ABCD 等级</p>
+      </div>
+      <div class="card" data-click="page('record','exam')">
+        <div class="icon">📊</div>
+        <h3>测验记录</h3>
+        <p>分数录入</p>
+      </div>
+    </div>
+  `);
+}
+
+function rosterPage() {
+  const cls = getClass();
+  const students = getStudents();
+  render(`
+    <div class="sub-header">
+      <a href="#" class="back" data-click="page('home')">← 首页</a>
+      <h2>${cls?.name} · 花名册 (${students.length}人)</h2>
+    </div>
+    <div class="main">
+      ${students.map(s => `
+        <div class="student-row">
+          <span class="name">${s.name}</span>
+          <span style="font-size:12px;color:#999">${getStudentStats(s.id)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `);
+}
+
+function recordPage(mode) {
+  const labelMap = { class: '📖 上课记录', hw: '📝 作业记录', exam: '📊 测验记录' };
+  const students = getStudents();
+  render(`
+    <div class="sub-header">
+      <a href="#" class="back" data-click="page('home')">← 首页</a>
+      <h2>${labelMap[mode]}</h2>
+    </div>
+    <div class="main">
+      ${students.map(s => `
+        <div class="student-row">
+          <span class="name">${s.name}</span>
+          <div>
+            ${mode === 'exam' 
+              ? `<input id="score_${s.id}" type="number" min="0" max="100" placeholder="分数" style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;text-align:center;font-size:14px">
+                 <button class="grade-a" data-click="addExam('${s.id}')">录入</button>`
+              : `<button class="grade-a" data-click="addRecord('${s.id}','${mode}','A')">A</button>
+                 <button class="grade-d" data-click="addRecord('${s.id}','${mode}','D')">D</button>
+                 ${mode === 'hw' ? `<button class="grade-btn" style="background:#FF9800" data-click="addRecord('${s.id}','hw','B')">B</button>
+                 <button class="grade-btn" style="background:#FF5722" data-click="addRecord('${s.id}','hw','C')">C</button>` : ''}`
+            }
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `);
+}
+
+function dataPage() {
+  render(`
+    <div class="sub-header">
+      <a href="#" class="back" data-click="page('home')">← 首页</a>
+      <h2>数据管理</h2>
+    </div>
+    <div class="main">
+      <div class="card" data-click="exportCSV()">
+        <h3>📤 导出学生名单 CSV</h3>
+        <p>可用 Excel/WPS 打开</p>
+      </div>
+      <div class="card" data-click="exportRecords()">
+        <h3>📤 导出课堂记录 CSV</h3>
+        <p>全部记录明细</p>
+      </div>
+      <div class="card" data-click="exportJSON()">
+        <h3>📤 导出全部数据 JSON</h3>
+        <p>完整备份</p>
+      </div>
+      <div class="card" onclick="document.getElementById('importFile').click()">
+        <h3>📥 导入 JSON 备份</h3>
+        <p>选择之前导出的备份文件</p>
+      </div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  `);
+}
+
+// ============ 操作函数 ============
+function page(name, param) {
+  pageState = {};
+  if (name === 'home') homePage();
+  else if (name === 'roster') rosterPage();
+  else if (name === 'data') dataPage();
+  else if (name === 'record') recordPage(param);
+}
+
+function switchClass(id) {
+  currentClassId = id;
+  homePage();
+}
+
+function addRecord(sid, cat, type) {
+  db.records.push({
+    id: genId(), date: today(), time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+    classId: currentClassId, studentId: sid, category: cat, type, content: '', score: type==='A'?1:-1, voiceFile: null
+  });
+  save();
+  const stu = db.students.find(s => s.id === sid);
+  alert(`已记录: ${stu?.name} — ${type==='A'?'表扬(A)':'批评(D)'}`);
+  recordPage(cat);
+}
+
+function addExam(sid) {
+  const input = document.getElementById('score_' + sid);
+  const score = parseInt(input?.value);
+  if (isNaN(score) || score < 0 || score > 100) { alert('请输入0-100的分数'); return; }
+  const grade = score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : 'D';
+  db.records.push({
+    id: genId(), date: today(), time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+    classId: currentClassId, studentId: sid, category: 'exam', type: grade, content: score+'分', score, voiceFile: null
+  });
+  save();
+  const stu = db.students.find(s => s.id === sid);
+  alert(`已记录: ${stu?.name} — ${score}分(${grade})`);
+  recordPage('exam');
+}
+
+function getStudentStats(sid) {
+  const rs = db.records.filter(r => r.studentId === sid);
+  const a = rs.filter(r => r.category==='class' && r.type==='A').length;
+  const d = rs.filter(r => r.category==='class' && r.type==='D').length;
+  return a||d ? `📖${a}/${d}` : '';
+}
+
+// ============ 导入导出 ============
+function exportCSV() { downloadCSV('学生名单', '班级,姓名\n' + db.students.map(s => {
+  const c = db.classes.find(cls => cls.id === s.classId);
+  return `"${c?.name||''}","${s.name}"`;
+}).join('\n')); }
+
+function exportRecords() { downloadCSV('课堂记录', '日期,时间,班级,学生,类型,内容,分值\n' + db.records.map(r => {
+  const s = db.students.find(st => st.id === r.studentId);
+  const c = db.classes.find(cls => cls.id === r.classId);
+  const catMap={class:'上课',hw:'作业',exam:'测验'};
+  return `"${r.date}","${r.time||''}","${c?.name||''}","${s?.name||''}","${catMap[r.category]||r.category}","${r.content||''}","${r.type==='score'?r.score:r.type}"`;
+}).join('\n')); }
+
+function exportJSON() { downloadFile('教师宝备份.json', JSON.stringify(db, null, 2)); }
+
+function downloadCSV(name, content) {
+  downloadFile(`教师宝_${name}.csv`, '\uFEFF' + content);
+}
+
+function downloadFile(name, content) {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.classes || !data.students || !data.records) { alert('格式错误'); return; }
+      db = data;
+      save();
+      currentClassId = db.classes[0]?.id || null;
+      alert(`导入成功: ${data.students.length}名学生, ${data.records.length}条记录`);
+      homePage();
+    } catch(e) { alert('导入失败: ' + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ============ 启动 ============
+homePage();
+</script>
+</body>
+</html>
